@@ -7,45 +7,68 @@ import {
   ScrollView,
   SafeAreaView,
   Alert,
+  Switch,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-
-// Workout types for selection
-const workoutTypes = ["Cardio", "Strength", "Flexibility", "HIIT", "Recovery"];
-
-// Intensity levels
-const intensityLevels = ["Low", "Medium", "High"];
+import {
+  Workout,
+  WorkoutType,
+  IntensityLevel,
+  WorkoutFormData,
+  // DifficultyLevel,
+  WorkoutSet,
+} from "@/lib/types";
+import { workoutTypes, equipment, targetMuscles } from "@/lib/data";
 
 export default function AddWorkoutScreen() {
   const router = useRouter();
-  const [activeField, setActiveField] = useState("");
+  const [activeField, setActiveField] = useState<string>("");
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
 
-  // Form state
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<WorkoutFormData>({
     name: "",
     duration: "",
     calories: "",
     type: "",
     intensity: "",
     notes: "",
+    equipment: [],
+    targetMuscles: [],
+    difficulty: "Beginner",
+    sets: [],
   });
 
-  // Error state
-  const [errors, setErrors] = useState({
-    name: "",
-    duration: "",
-    type: "",
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof WorkoutFormData, string>>
+  >({});
+  const [currentSet, setCurrentSet] = useState<WorkoutSet>({
+    exerciseName: "",
+    reps: 0,
+    weight: 0,
+    duration: 0,
+    restPeriod: 60,
   });
 
-  // Validate form
-  const validateForm = () => {
+  const addSet = () => {
+    if (currentSet.exerciseName && currentSet.reps > 0) {
+      setForm((prev) => ({
+        ...prev,
+        sets: [...prev.sets, currentSet],
+      }));
+      setCurrentSet({
+        exerciseName: "",
+        reps: 0,
+        weight: 0,
+        duration: 0,
+        restPeriod: 60,
+      });
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: Partial<Record<keyof WorkoutFormData, string>> = {};
     let isValid = true;
-    const newErrors = {
-      name: "",
-      duration: "",
-      type: "",
-    };
 
     if (!form.name.trim()) {
       newErrors.name = "Workout name is required";
@@ -69,15 +92,29 @@ export default function AddWorkoutScreen() {
     return isValid;
   };
 
-  // Handle form submission
-  const handleSubmit = () => {
+  const handleSubmit = (): void => {
     if (validateForm()) {
-      Alert.alert("Success", "Workout added successfully!", [
-        {
-          text: "OK",
-          onPress: () => router.back(),
-        },
-      ]);
+      Alert.alert(
+        "Workout Summary",
+        `Name: ${form.name}\nType: ${form.type}\nDuration: ${form.duration} minutes\nSets: ${form.sets.length}`,
+        [
+          {
+            text: "Edit",
+            style: "cancel",
+          },
+          {
+            text: "Save",
+            onPress: () => {
+              Alert.alert("Success", "Workout added successfully!", [
+                {
+                  text: "OK",
+                  onPress: () => router.back(),
+                },
+              ]);
+            },
+          },
+        ]
+      );
     }
   };
 
@@ -94,7 +131,7 @@ export default function AddWorkoutScreen() {
           </Text>
         </View>
 
-        {/* Form Fields */}
+        {/* Basic Info Section */}
         <View className="space-y-4">
           {/* Workout Name */}
           <View className="bg-white p-4 rounded-xl shadow-sm">
@@ -105,7 +142,10 @@ export default function AddWorkoutScreen() {
               value={form.name}
               onChangeText={(text) => {
                 setForm({ ...form, name: text });
-                if (errors.name) setErrors({ ...errors, name: "" });
+                if (errors.name) {
+                  const { name, ...rest } = errors;
+                  setErrors(rest);
+                }
               }}
               onFocus={() => setActiveField("name")}
               onBlur={() => setActiveField("")}
@@ -114,12 +154,12 @@ export default function AddWorkoutScreen() {
                 activeField === "name" ? "border-2 border-indigo-500" : ""
               }`}
             />
-            {errors.name ? (
+            {errors.name && (
               <Text className="text-red-500 text-sm mt-1">{errors.name}</Text>
-            ) : null}
+            )}
           </View>
 
-          {/* Duration and Calories Row */}
+          {/* Duration and Calories */}
           <View className="flex-row space-x-4">
             <View className="flex-1 bg-white p-4 rounded-xl shadow-sm">
               <Text className="text-gray-700 font-medium mb-2">
@@ -127,25 +167,12 @@ export default function AddWorkoutScreen() {
               </Text>
               <TextInput
                 value={form.duration}
-                onChangeText={(text) => {
-                  setForm({ ...form, duration: text });
-                  if (errors.duration) setErrors({ ...errors, duration: "" });
-                }}
-                onFocus={() => setActiveField("duration")}
-                onBlur={() => setActiveField("")}
-                placeholder="30"
+                onChangeText={(text) => setForm({ ...form, duration: text })}
                 keyboardType="numeric"
-                className={`bg-gray-50 rounded-xl px-4 py-3 ${
-                  activeField === "duration" ? "border-2 border-indigo-500" : ""
-                }`}
+                placeholder="30"
+                className="bg-gray-50 rounded-xl px-4 py-3"
               />
-              {errors.duration ? (
-                <Text className="text-red-500 text-sm mt-1">
-                  {errors.duration}
-                </Text>
-              ) : null}
             </View>
-
             <View className="flex-1 bg-white p-4 rounded-xl shadow-sm">
               <Text className="text-gray-700 font-medium mb-2">
                 Calories (optional)
@@ -153,18 +180,14 @@ export default function AddWorkoutScreen() {
               <TextInput
                 value={form.calories}
                 onChangeText={(text) => setForm({ ...form, calories: text })}
-                onFocus={() => setActiveField("calories")}
-                onBlur={() => setActiveField("")}
-                placeholder="300"
                 keyboardType="numeric"
-                className={`bg-gray-50 rounded-xl px-4 py-3 ${
-                  activeField === "calories" ? "border-2 border-indigo-500" : ""
-                }`}
+                placeholder="300"
+                className="bg-gray-50 rounded-xl px-4 py-3"
               />
             </View>
           </View>
 
-          {/* Workout Type */}
+          {/* Workout Type Selection */}
           <View className="bg-white p-4 rounded-xl shadow-sm">
             <Text className="text-gray-700 font-medium mb-2">
               Workout Type <Text className="text-red-500">*</Text>
@@ -176,55 +199,182 @@ export default function AddWorkoutScreen() {
             >
               {workoutTypes.map((type) => (
                 <TouchableOpacity
-                  key={type}
-                  onPress={() => {
-                    setForm({ ...form, type });
-                    if (errors.type) setErrors({ ...errors, type: "" });
-                  }}
-                  className={`m-1 px-4 py-2 rounded-full ${
-                    form.type === type ? "bg-indigo-500" : "bg-gray-100"
+                  key={type.id}
+                  onPress={() => setForm({ ...form, type: type.name })}
+                  className={`m-1 p-3 rounded-xl ${
+                    form.type === type.name ? "bg-indigo-500" : "bg-gray-100"
                   }`}
                 >
+                  <Text className="text-2xl mb-1">{type.icon}</Text>
                   <Text
                     className={`${
-                      form.type === type ? "text-white" : "text-gray-600"
+                      form.type === type.name ? "text-white" : "text-gray-700"
                     }`}
                   >
-                    {type}
+                    {type.name}
+                  </Text>
+                  <Text
+                    className={`text-xs mt-1 ${
+                      form.type === type.name
+                        ? "text-white/80"
+                        : "text-gray-500"
+                    }`}
+                  >
+                    {type.description}
                   </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            {errors.type ? (
-              <Text className="text-red-500 text-sm mt-1">{errors.type}</Text>
-            ) : null}
           </View>
 
-          {/* Intensity Level */}
+          {/* Advanced Options Toggle */}
           <View className="bg-white p-4 rounded-xl shadow-sm">
-            <Text className="text-gray-700 font-medium mb-2">
-              Intensity Level
-            </Text>
-            <View className="flex-row justify-between -mx-1">
-              {intensityLevels.map((level) => (
-                <TouchableOpacity
-                  key={level}
-                  onPress={() => setForm({ ...form, intensity: level })}
-                  className={`flex-1 mx-1 py-2 rounded-xl ${
-                    form.intensity === level ? "bg-indigo-500" : "bg-gray-100"
-                  }`}
-                >
-                  <Text
-                    className={`text-center ${
-                      form.intensity === level ? "text-white" : "text-gray-600"
-                    }`}
-                  >
-                    {level}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <TouchableOpacity
+              className="flex-row justify-between items-center"
+              onPress={() => setShowAdvanced(!showAdvanced)}
+            >
+              <Text className="text-gray-700 font-medium">
+                Advanced Options
+              </Text>
+              <Switch value={showAdvanced} onValueChange={setShowAdvanced} />
+            </TouchableOpacity>
           </View>
+
+          {/* Advanced Options */}
+          {showAdvanced && (
+            <>
+              {/* Equipment Selection */}
+              <View className="bg-white p-4 rounded-xl shadow-sm">
+                <Text className="text-gray-700 font-medium mb-2">
+                  Equipment
+                </Text>
+                <View className="flex-row flex-wrap -m-1">
+                  {equipment.map((item) => (
+                    <TouchableOpacity
+                      key={item}
+                      onPress={() => {
+                        const newEquipment = form.equipment.includes(item)
+                          ? form.equipment.filter((e) => e !== item)
+                          : [...form.equipment, item];
+                        setForm({ ...form, equipment: newEquipment });
+                      }}
+                      className={`m-1 px-3 py-1 rounded-full ${
+                        form.equipment.includes(item)
+                          ? "bg-indigo-500"
+                          : "bg-gray-100"
+                      }`}
+                    >
+                      <Text
+                        className={
+                          form.equipment.includes(item)
+                            ? "text-white"
+                            : "text-gray-700"
+                        }
+                      >
+                        {item}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Target Muscles */}
+              <View className="bg-white p-4 rounded-xl shadow-sm">
+                <Text className="text-gray-700 font-medium mb-2">
+                  Target Muscles
+                </Text>
+                <View className="flex-row flex-wrap -m-1">
+                  {targetMuscles.map((muscle) => (
+                    <TouchableOpacity
+                      key={muscle}
+                      onPress={() => {
+                        const newMuscles = form.targetMuscles.includes(muscle)
+                          ? form.targetMuscles.filter((m) => m !== muscle)
+                          : [...form.targetMuscles, muscle];
+                        setForm({ ...form, targetMuscles: newMuscles });
+                      }}
+                      className={`m-1 px-3 py-1 rounded-full ${
+                        form.targetMuscles.includes(muscle)
+                          ? "bg-indigo-500"
+                          : "bg-gray-100"
+                      }`}
+                    >
+                      <Text
+                        className={
+                          form.targetMuscles.includes(muscle)
+                            ? "text-white"
+                            : "text-gray-700"
+                        }
+                      >
+                        {muscle}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Exercise Sets */}
+              <View className="bg-white p-4 rounded-xl shadow-sm">
+                <Text className="text-gray-700 font-medium mb-2">
+                  Exercise Sets
+                </Text>
+
+                {/* Add New Set Form */}
+                <View className="bg-gray-50 p-3 rounded-xl mb-4">
+                  <TextInput
+                    value={currentSet.exerciseName}
+                    onChangeText={(text) =>
+                      setCurrentSet({ ...currentSet, exerciseName: text })
+                    }
+                    placeholder="Exercise name"
+                    className="bg-white rounded-xl px-4 py-2 mb-2"
+                  />
+                  <View className="flex-row space-x-2 mb-2">
+                    <TextInput
+                      value={currentSet.reps.toString()}
+                      onChangeText={(text) =>
+                        setCurrentSet({
+                          ...currentSet,
+                          reps: parseInt(text) || 0,
+                        })
+                      }
+                      placeholder="Reps"
+                      keyboardType="numeric"
+                      className="flex-1 bg-white rounded-xl px-4 py-2"
+                    />
+                    <TextInput
+                      value={currentSet.weight?.toString()}
+                      onChangeText={(text) =>
+                        setCurrentSet({
+                          ...currentSet,
+                          weight: parseInt(text) || 0,
+                        })
+                      }
+                      placeholder="Weight (kg)"
+                      keyboardType="numeric"
+                      className="flex-1 bg-white rounded-xl px-4 py-2"
+                    />
+                  </View>
+                  <TouchableOpacity
+                    onPress={addSet}
+                    className="bg-indigo-500 rounded-xl py-2"
+                  >
+                    <Text className="text-white text-center">Add Set</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Sets List */}
+                {form.sets.map((set, index) => (
+                  <View key={index} className="bg-gray-50 p-3 rounded-xl mb-2">
+                    <Text className="font-medium">{set.exerciseName}</Text>
+                    <Text className="text-gray-500">
+                      {set.reps} reps {set.weight ? `@ ${set.weight}kg` : ""}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
 
           {/* Notes */}
           <View className="bg-white p-4 rounded-xl shadow-sm">
@@ -234,14 +384,10 @@ export default function AddWorkoutScreen() {
             <TextInput
               value={form.notes}
               onChangeText={(text) => setForm({ ...form, notes: text })}
-              onFocus={() => setActiveField("notes")}
-              onBlur={() => setActiveField("")}
               placeholder="Add any additional notes..."
               multiline
               numberOfLines={4}
-              className={`bg-gray-50 rounded-xl px-4 py-3 min-h-[100px] ${
-                activeField === "notes" ? "border-2 border-indigo-500" : ""
-              }`}
+              className="bg-gray-50 rounded-xl px-4 py-3 min-h-[100px]"
               textAlignVertical="top"
             />
           </View>
