@@ -1,4 +1,3 @@
-// app/add.tsx
 import {
   View,
   Text,
@@ -11,14 +10,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import {
-  Workout,
-  WorkoutType,
-  IntensityLevel,
-  WorkoutFormData,
-  // DifficultyLevel,
-  WorkoutSet,
-} from "@/lib/types";
+import { WorkoutFormData, WorkoutSet } from "@/lib/types";
 import { workoutTypes, equipment, targetMuscles } from "@/lib/data";
 
 export default function AddWorkoutScreen() {
